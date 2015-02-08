@@ -21,12 +21,19 @@
 
 	<name>auxis ::  Local Repository Access Recorder</name>
 	<description>A Maven Extension writing all artifact requests to repository/artifact-request.log</description>
-	
+
 	<inceptionYear>2015</inceptionYear>
 
 	<properties>
 		<aetherVersion>1.0.0.v20140518</aetherVersion>
 	</properties>
+
+	<scm>
+		<connection>scm:git:git@github.com:auxisrepos/accesslog-maven-extension.git</connection>
+		<developerConnection>scm:git:git@github.com:auxisrepos/accesslog-maven-extension.git</developerConnection>
+		<url>git@github.com:auxisrepos/accesslog-maven-extension.git</url>
+		<tag>HEAD</tag>
+	</scm>
 
 	<dependencies>
 		<dependency>
