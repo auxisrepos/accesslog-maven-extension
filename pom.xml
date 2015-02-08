@@ -16,7 +16,7 @@
 
 	<packaging>jar</packaging>
 	<groupId>org.auxis.maven</groupId>
-	<artifactId>auxis-accesslog-repository</artifactId>
+	<artifactId>accesslog-maven-extension</artifactId>
 	<version>0.1.0-SNAPSHOT</version>
 
 	<name>auxis ::  Local Repository Access Recorder</name>
