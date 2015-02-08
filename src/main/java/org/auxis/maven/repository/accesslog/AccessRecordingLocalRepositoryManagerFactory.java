@@ -21,16 +21,18 @@ public class AccessRecordingLocalRepositoryManagerFactory implements LocalReposi
     private List<LocalRepositoryManagerFactory> localRepositoryManagerFactories;
 
     public LocalRepositoryManager newInstance(RepositorySystemSession session, LocalRepository repository) throws NoLocalRepositoryManagerException {
-    	return new AccessRecordingLocalRepositoryManager(evictDelegateManager().newInstance(session, repository), repository, session);
+        return new AccessRecordingLocalRepositoryManager(evictDelegateManager().newInstance(session, repository), repository, session);
     }
 
     private LocalRepositoryManagerFactory evictDelegateManager() {
         LocalRepositoryManagerFactory secondLeader = null;
         for (LocalRepositoryManagerFactory locals : localRepositoryManagerFactories) {
-            if (locals.getClass().equals(AccessRecordingLocalRepositoryManagerFactory.class)) continue;
+            if (locals.getClass().equals(AccessRecordingLocalRepositoryManagerFactory.class))
+                continue;
             if (secondLeader == null) {
                 secondLeader = locals;
-            } else {
+            }
+            else {
                 if (secondLeader.getPriority() < locals.getPriority()) {
                     secondLeader = locals;
                 }
@@ -44,4 +46,3 @@ public class AccessRecordingLocalRepositoryManagerFactory implements LocalReposi
     }
 
 }
-

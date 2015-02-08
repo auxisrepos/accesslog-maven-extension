@@ -19,43 +19,46 @@ import org.eclipse.aether.repository.LocalRepositoryManager;
 import org.eclipse.aether.repository.RemoteRepository;
 
 /**
- * Delegating repository manager that passes forward all requests.
- * It only records requested artifacts in a recording logfile.
+ * Delegating repository manager that passes forward all requests. It only records requested
+ * artifacts in a recording logfile.
  *
  */
 public class AccessRecordingLocalRepositoryManager implements LocalRepositoryManager {
 
     private final File output;
-    
+
     private final LocalRepositoryManager m_delegate;
 
     public AccessRecordingLocalRepositoryManager(LocalRepositoryManager delegate, LocalRepository repository, RepositorySystemSession session) {
         m_delegate = delegate;
-        output = new File(repository.getBasedir(),"artifact-request.log");
+        output = new File(repository.getBasedir(), "artifact-request.log");
     }
-    
+
     @Override
     public LocalArtifactResult find(RepositorySystemSession repositorySystemSession, LocalArtifactRequest localArtifactRequest) {
-    	// Record all requested artifacts.
-    	write(localArtifactRequest.getArtifact());
-        return m_delegate.find(repositorySystemSession,localArtifactRequest);
+        // Record all requested artifacts.
+        write(localArtifactRequest.getArtifact());
+        return m_delegate.find(repositorySystemSession, localArtifactRequest);
     }
-    
+
     private void write(Artifact artifact) {
-    	BufferedWriter writer = null;
-		try {
-			writer = new BufferedWriter(new FileWriter(output,true));
-			writer.append(artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getExtension() + ":" + artifact.getVersion());
-			writer.newLine();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}finally {
-			try {
-				writer.close();
-			} catch (IOException e) {
-			}
-		}	
-	}
+        BufferedWriter writer = null;
+        try {
+            writer = new BufferedWriter(new FileWriter(output, true));
+            writer.append(artifact.getGroupId() + ":" + artifact.getArtifactId() + ":" + artifact.getExtension() + ":" + artifact.getVersion());
+            writer.newLine();
+        }
+        catch (IOException e) {
+            e.printStackTrace();
+        }
+        finally {
+            try {
+                writer.close();
+            }
+            catch (IOException e) {
+            }
+        }
+    }
 
     @Override
     public LocalRepository getRepository() {
@@ -69,7 +72,7 @@ public class AccessRecordingLocalRepositoryManager implements LocalRepositoryMan
 
     @Override
     public String getPathForRemoteArtifact(Artifact artifact, RemoteRepository remoteRepository, String s) {
-        return m_delegate.getPathForRemoteArtifact(artifact,remoteRepository,s);
+        return m_delegate.getPathForRemoteArtifact(artifact, remoteRepository, s);
     }
 
     @Override
@@ -79,21 +82,21 @@ public class AccessRecordingLocalRepositoryManager implements LocalRepositoryMan
 
     @Override
     public String getPathForRemoteMetadata(Metadata metadata, RemoteRepository remoteRepository, String s) {
-        return m_delegate.getPathForRemoteMetadata(metadata,remoteRepository,s);
+        return m_delegate.getPathForRemoteMetadata(metadata, remoteRepository, s);
     }
-    
+
     @Override
     public void add(RepositorySystemSession repositorySystemSession, LocalArtifactRegistration localArtifactRegistration) {
-    	m_delegate.add(repositorySystemSession,localArtifactRegistration);
+        m_delegate.add(repositorySystemSession, localArtifactRegistration);
     }
-    
-	@Override
+
+    @Override
     public LocalMetadataResult find(RepositorySystemSession repositorySystemSession, LocalMetadataRequest localMetadataRequest) {
-        return m_delegate.find(repositorySystemSession,localMetadataRequest);
+        return m_delegate.find(repositorySystemSession, localMetadataRequest);
     }
 
     @Override
     public void add(RepositorySystemSession repositorySystemSession, LocalMetadataRegistration localMetadataRegistration) {
-        m_delegate.add(repositorySystemSession,localMetadataRegistration);
+        m_delegate.add(repositorySystemSession, localMetadataRegistration);
     }
 }
