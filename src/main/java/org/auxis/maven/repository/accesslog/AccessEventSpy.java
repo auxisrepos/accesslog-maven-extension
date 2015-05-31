@@ -138,7 +138,10 @@ public class AccessEventSpy extends AbstractEventSpy
         }
         else if ( event instanceof DefaultMavenExecutionResult )
         {
+            // Read from result as those things will be available at fulliest at the very end of the reactor run.
             DefaultMavenExecutionResult execResult = ( DefaultMavenExecutionResult ) event;
+            logger.info( "REGISTER getRemoteArtifactRepositories  : " + execResult.getProject().getRemoteArtifactRepositories().size() );
+            remoteRepos = AetherUtils.toRepos( execResult.getProject().getRemoteArtifactRepositories() );
             if ( execResult.getDependencyResolutionResult().getUnresolvedDependencies().size() > 0 )
             {
                 m_sync = false;
@@ -147,26 +150,14 @@ public class AccessEventSpy extends AbstractEventSpy
         else if ( event instanceof MavenExecutionRequest )
         {
             MavenExecutionRequest execRequest = ( MavenExecutionRequest ) event;
-            List<ArtifactRepository> repos = execRequest.getRemoteRepositories();
-            for ( String profile : execRequest.getActiveProfiles() )
-            {
-                logger.info( "Acitve profile: " + profile );
-            }
-
-            logger.info( "REGISTER REPOS: " + repos.size() );
-            remoteRepos = AetherUtils.toRepos( repos );
-
         }
         else if ( event instanceof SettingsBuildingRequest )
         {
             SettingsBuildingRequest settingsBuildingRequest = ( SettingsBuildingRequest ) event;
-
         }
         else if ( event instanceof SettingsBuildingResult )
         {
-
             SettingsBuildingResult settingsBuildingRequest = ( SettingsBuildingResult ) event;
-
         }
         else
         {
