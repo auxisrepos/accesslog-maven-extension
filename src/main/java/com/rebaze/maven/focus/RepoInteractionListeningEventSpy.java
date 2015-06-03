@@ -6,9 +6,9 @@
  * http://www.apache.org/licenses/
  * <p/>
  * Contributors:
- * Rebaze - collect them all.
+ * Rebaze
  *******************************************************************************/
-package org.auxis.maven.repository.accesslog;
+package com.rebaze.maven.focus;
 
 import org.apache.maven.eventspy.AbstractEventSpy;
 import org.apache.maven.execution.DefaultMavenExecutionResult;
@@ -37,12 +37,15 @@ import java.io.*;
 import java.util.*;
 
 /**
+ *
+ * @author Toni Menzel (toni.menzel@rebaze.com)
+ *
  * A dependency tracing spy.
  * Dumps all relevant repository interaction to a file so we can provision
  * repositories with dependencies.
  */
 @Named
-public class AccessEventSpy extends AbstractEventSpy
+public class RepoInteractionListeningEventSpy extends AbstractEventSpy
 {
     /**
      * When set, this plugin will upload dependencies in target/recording.txt to the repo configured here.

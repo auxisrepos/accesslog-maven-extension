@@ -5,7 +5,7 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package org.auxis.maven.repository.accesslog;
+package com.rebaze.maven.focus;
 
 /*
  * Licensed to the Apache Software Foundation (ASF) under one or more contributor license

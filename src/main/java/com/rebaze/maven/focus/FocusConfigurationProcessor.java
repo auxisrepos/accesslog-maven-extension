@@ -1,4 +1,14 @@
-package org.auxis.maven.repository.accesslog;
+/*******************************************************************************
+ * Copyright (c) 2015 Rebaze GmbH.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache Software License v2.0
+ * which accompanies this distribution, and is available at
+ * http://www.apache.org/licenses/
+ * <p/>
+ * Contributors:
+ * Rebaze
+ *******************************************************************************/
+package com.rebaze.maven.focus;
 
 import org.apache.maven.MavenExecutionException;
 import org.apache.maven.artifact.repository.ArtifactRepository;
@@ -18,13 +28,17 @@ import java.util.*;
 
 /**
  *
+ * A configuration post-processor restricting all external repositories to a single (focus-) repository.
+ *
+ * @author Toni Menzel (toni.menzel@rebaze.com)
+ *
  */
 @Component( role = ConfigurationProcessor.class, hint = FocusConfigurationProcessor.HINT )
 public class FocusConfigurationProcessor
     implements ConfigurationProcessor
 {
     /**
-     * When enabled, settings will be heavily restricted to only point to the repository configured in {@link AccessEventSpy#PROPERTY_FOCUS_REPO}
+     * When enabled, settings will be heavily restricted to only point to the repository configured in {@link RepoInteractionListeningEventSpy#PROPERTY_FOCUS_REPO}
      */
     public static String PROPERTY_STRICT = "focus.strict";
 
@@ -46,7 +60,7 @@ public class FocusConfigurationProcessor
         {
             logger.info( "Focus mode is enabled." );
 
-            Repository focusRepo = findRepository( cliRequest.getRequest(), cliRequest.getUserProperties().getProperty( AccessEventSpy.PROPERTY_FOCUS_REPO ) );
+            Repository focusRepo = findRepository( cliRequest.getRequest(), cliRequest.getUserProperties().getProperty( RepoInteractionListeningEventSpy.PROPERTY_FOCUS_REPO ) );
             cliRequest.getRequest().setMirrors( adaptMirrors( cliRequest.getRequest(), focusRepo ) );
             cliRequest.getRequest().setProfiles( adaptProfiles( cliRequest.getRequest(), focusRepo ) );
 
