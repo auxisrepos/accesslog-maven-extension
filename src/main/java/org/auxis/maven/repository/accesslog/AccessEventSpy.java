@@ -1,6 +1,15 @@
+/*******************************************************************************
+ * Copyright (c) 2015 Rebaze GmbH.
+ * All rights reserved. This program and the accompanying materials
+ * are made available under the terms of the Apache Software License v2.0
+ * which accompanies this distribution, and is available at
+ * http://www.apache.org/licenses/
+ * <p/>
+ * Contributors:
+ * Rebaze - collect them all.
+ *******************************************************************************/
 package org.auxis.maven.repository.accesslog;
 
-import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.eventspy.AbstractEventSpy;
 import org.apache.maven.execution.DefaultMavenExecutionResult;
 import org.apache.maven.execution.ExecutionEvent;
@@ -35,6 +44,17 @@ import java.util.*;
 @Named
 public class AccessEventSpy extends AbstractEventSpy
 {
+    /**
+     * When set, this plugin will upload dependencies in target/recording.txt to the repo configured here.
+     */
+    public static String PROPERTY_FOCUS_REPO = "focus.repo";
+
+    /**
+     * When enabled, this spy will trace dependencies requested during builds in file target/recording.txt.
+     *
+     */
+    public static String PROPERTY_ENABLED = "focus.enabled";
+
     @Inject
     private Logger logger;
 
@@ -48,23 +68,104 @@ public class AccessEventSpy extends AbstractEventSpy
 
     private List<RepositoryEvent> m_eventLog = new ArrayList<>();
 
-    private String deploymentTarget = "singledeploy";
-
-    private String[] allowedRepos;
-
     private boolean m_sync = true;
+
+    private MavenExecutionRequest execRequest;
+
+    private String uploadRepo;
+
+    private boolean enabled = false;
+
+    @Override public void onEvent( Object event ) throws Exception
+    {
+        super.onEvent( event );
+
+        //traceEvents( event );
+        try
+        {
+            if ( event instanceof ExecutionEvent )
+            {
+                org.apache.maven.execution.ExecutionEvent exec = ( ExecutionEvent ) event;
+                if ( exec.getProject() != null && exec.getProject().isExecutionRoot() )
+                {
+                    if ( m_reactorProject == null )
+                    {
+                        m_eventLog = new ArrayList<>();
+                        m_reactorProject = exec.getProject();
+
+                    }
+                }
+            }
+            else if ( event instanceof org.eclipse.aether.RepositoryEvent )
+            {
+                RepositoryEvent repositoryEvent = ( RepositoryEvent ) event;
+                if ( enabled )
+                {
+                    m_eventLog.add( repositoryEvent );
+                    if ( repoSession == null )
+                    {
+                        repoSession = repositoryEvent.getSession();
+                    }
+                }
+            }
+            else if ( event instanceof DefaultMavenExecutionResult )
+            {
+                DefaultMavenExecutionResult execResult = ( DefaultMavenExecutionResult ) event;
+                remoteRepos = AetherUtils.toRepos( execResult.getProject().getRemoteArtifactRepositories() );
+                if ( execResult.getDependencyResolutionResult() != null && execResult.getDependencyResolutionResult().getUnresolvedDependencies().size() > 0 )
+                {
+                    m_sync = false;
+                }
+
+                // MAYBE TRIGGER DEPLOY HERE??
+            }
+            else if ( event instanceof MavenExecutionRequest )
+            {
+                if ( execRequest == null )
+                {
+                    execRequest = ( MavenExecutionRequest ) event;
+                    uploadRepo = execRequest.getUserProperties().getProperty( PROPERTY_FOCUS_REPO );
+                    enabled = FocusConfigurationProcessor.isEnabled( execRequest.getUserProperties().getProperty( PROPERTY_ENABLED ) );
+                }
+
+            }
+            else if ( event instanceof SettingsBuildingRequest )
+            {
+                SettingsBuildingRequest settingsBuildingRequest = ( SettingsBuildingRequest ) event;
+
+            }
+            else if ( event instanceof SettingsBuildingResult )
+            {
+                //logger.info( "Overwrite repos for request: " + execRequest );
+            }
+            else
+            {
+                //logger.info( "Unrecognized event: " + event.getClass().getName() );
+            }
+        }
+        catch ( Exception e )
+        {
+            logger.error( "Problem!", e );
+        }
+    }
+
+    private void traceEvents( Object event )
+    {
+        if ( !( event instanceof RepositoryEvent ) )
+            logger.info( "Event: " + event.getClass().getName() );
+    }
 
     @Override public void close() throws Exception
     {
-        if ( m_reactorProject != null )
+        logger.info( "Finishing focus extension.. " + enabled );
+        if ( enabled && m_reactorProject != null )
         {
             File file = writeDependencyList();
-            if ( deploymentTarget != null )
+            if ( uploadRepo != null )
             {
                 if ( m_sync )
                 {
                     deployBill( file );
-
                 }
                 else
                 {
@@ -74,6 +175,37 @@ public class AccessEventSpy extends AbstractEventSpy
             }
         }
         super.close();
+    }
+
+    private void deployBill( File input )
+    {
+        RemoteRepository targetRepository = selectTargetRepo();
+        List<RemoteRepository> allowedRepositories = calculateAllowedRepositories();
+        List<String> sortedArtifacts = readInputBill( input );
+        try
+        {
+            List<Artifact> listOfArtifacts = parseAndResolveArtifacts( sortedArtifacts, allowedRepositories );
+            DeployRequest deployRequest = new DeployRequest();
+            deployRequest.setRepository( targetRepository );
+
+            for ( Artifact artifact : listOfArtifacts )
+            {
+                assert ( artifact.getFile() != null );
+                deployRequest.addArtifact( artifact );
+            }
+            getLog().info( "Deployment of " + deployRequest.getArtifacts().size() + " artifacts .." );
+
+            DeployResult result = repoSystem.deploy( repoSession, deployRequest );
+            getLog().info( "Deployment Result: " + result.getArtifacts().size() );
+        }
+        catch ( DeploymentException e )
+        {
+            getLog().error( "Problem deploying set..!", e );
+        }
+        catch ( ArtifactResolutionException e )
+        {
+            getLog().error( "Problem resolving artifact(s)..!", e );
+        }
     }
 
     private File writeDependencyList()
@@ -111,103 +243,18 @@ public class AccessEventSpy extends AbstractEventSpy
         return f;
     }
 
-    @Override public void onEvent( Object event ) throws Exception
-    {
-        super.onEvent( event );
-        if ( event instanceof ExecutionEvent )
-        {
-            org.apache.maven.execution.ExecutionEvent exec = ( ExecutionEvent ) event;
-            if ( exec.getProject() != null && exec.getProject().isExecutionRoot() )
-            {
-                if ( m_reactorProject == null )
-                {
-                    m_eventLog = new ArrayList<>();
-                    m_reactorProject = exec.getProject();
-
-                }
-            }
-        }
-        else if ( event instanceof org.eclipse.aether.RepositoryEvent )
-        {
-            RepositoryEvent repositoryEvent = ( RepositoryEvent ) event;
-            m_eventLog.add( repositoryEvent );
-            if ( repoSession == null )
-            {
-                repoSession = repositoryEvent.getSession();
-            }
-        }
-        else if ( event instanceof DefaultMavenExecutionResult )
-        {
-            // Read from result as those things will be available at fulliest at the very end of the reactor run.
-            DefaultMavenExecutionResult execResult = ( DefaultMavenExecutionResult ) event;
-            logger.info( "REGISTER getRemoteArtifactRepositories  : " + execResult.getProject().getRemoteArtifactRepositories().size() );
-            remoteRepos = AetherUtils.toRepos( execResult.getProject().getRemoteArtifactRepositories() );
-            if ( execResult.getDependencyResolutionResult().getUnresolvedDependencies().size() > 0 )
-            {
-                m_sync = false;
-            }
-        }
-        else if ( event instanceof MavenExecutionRequest )
-        {
-            MavenExecutionRequest execRequest = ( MavenExecutionRequest ) event;
-        }
-        else if ( event instanceof SettingsBuildingRequest )
-        {
-            SettingsBuildingRequest settingsBuildingRequest = ( SettingsBuildingRequest ) event;
-        }
-        else if ( event instanceof SettingsBuildingResult )
-        {
-            SettingsBuildingResult settingsBuildingRequest = ( SettingsBuildingResult ) event;
-        }
-        else
-        {
-            logger.info( "Unrecognized event: " + event.getClass().getName() );
-        }
-    }
-
-    private void deployBill( File input )
-    {
-        RemoteRepository targetRepository = selectTargetRepo();
-        List<RemoteRepository> allowedRepositories = calculateAllowedRepositories();
-        List<String> sortedArtifacts = readInputBill( input );
-        try
-        {
-            List<Artifact> listOfArtifacts = parseAndResolveArtifacts( sortedArtifacts, allowedRepositories );
-            DeployRequest deployRequest = new DeployRequest();
-            deployRequest.setRepository( targetRepository );
-
-            for ( Artifact artifact : listOfArtifacts )
-            {
-                assert ( artifact.getFile() != null );
-                deployRequest.addArtifact( artifact );
-            }
-            getLog().info( "Deployment of " + deployRequest.getArtifacts().size() + " artifacts .." );
-
-            DeployResult result = repoSystem.deploy( repoSession, deployRequest );
-            getLog().info( "Deployment Result: " + result.getArtifacts().size() );
-        }
-        catch ( DeploymentException e )
-        {
-            getLog().error( "Problem deploying set..!", e );
-        }
-        catch ( ArtifactResolutionException e )
-        {
-            getLog().error( "Problem resolving artifact(s)..!", e );
-        }
-    }
-
     private RemoteRepository selectTargetRepo()
     {
         logger.info( "Repositories configured: " + this.remoteRepos.size() );
         for ( RemoteRepository repo : this.remoteRepos )
         {
             getLog().info( "Using repo: " + repo );
-            if ( repo.getId().equals( this.deploymentTarget ) )
+            if ( repo.getId().equals( uploadRepo ) )
             {
                 return repo;
             }
         }
-        throw new IllegalArgumentException( "Target Repository ID " + deploymentTarget + " is unkown. Is it configured?" );
+        throw new IllegalArgumentException( "Target Repository ID " + uploadRepo + " is unkown. Is it configured?" );
     }
 
     private List<String> readInputBill( File input )
@@ -247,27 +294,7 @@ public class AccessEventSpy extends AbstractEventSpy
     private List<RemoteRepository> calculateAllowedRepositories()
     {
         List<RemoteRepository> result = new ArrayList<>();
-
-        if ( allowedRepos == null || allowedRepos.length == 0 )
-        {
-            result = this.remoteRepos;
-        }
-        else
-        {
-            Set<String> allowed = new HashSet<>( Arrays.asList( allowedRepos ) );
-            for ( RemoteRepository repo : this.remoteRepos )
-            {
-                if ( allowed.contains( repo.getId() ) )
-                {
-                    result.add( repo );
-                }
-            }
-        }
-        for ( RemoteRepository repo : result )
-        {
-            getLog().info( "Allowed repo: " + repo );
-        }
-        getLog().info( "Repositories allowed for resolving: " + result );
+        result = this.remoteRepos;
         return result;
     }
 
