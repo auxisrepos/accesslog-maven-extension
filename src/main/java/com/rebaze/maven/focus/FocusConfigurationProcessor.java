@@ -11,7 +11,6 @@
 package com.rebaze.maven.focus;
 
 import org.apache.maven.MavenExecutionException;
-import org.apache.maven.artifact.repository.ArtifactRepository;
 import org.apache.maven.cli.CliRequest;
 import org.apache.maven.cli.configuration.ConfigurationProcessor;
 import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
@@ -24,14 +23,15 @@ import org.codehaus.plexus.component.annotations.Component;
 import org.codehaus.plexus.component.annotations.Requirement;
 import org.codehaus.plexus.logging.Logger;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
- *
  * A configuration post-processor restricting all external repositories to a single (focus-) repository.
  *
  * @author Toni Menzel (toni.menzel@rebaze.com)
- *
  */
 @Component( role = ConfigurationProcessor.class, hint = FocusConfigurationProcessor.HINT )
 public class FocusConfigurationProcessor
@@ -79,7 +79,7 @@ public class FocusConfigurationProcessor
         for ( Profile p : cliRequest.getRequest().getProfiles() )
         {
             String active = profiles.contains( p.getId() ) ? "Active" : "Inactive";
-            logger.info(active + " Profile: " + p.getId());
+            logger.info( active + " Profile: " + p.getId() );
             for ( Repository repo : p.getRepositories() )
             {
                 logger.info( active + " Repository " + repo.getId() + " from profile " + p.getId() + " with target: " + repo.getUrl() );
@@ -109,28 +109,6 @@ public class FocusConfigurationProcessor
     public static boolean isEnabled( String value )
     {
         return value != null && ( value.trim().equalsIgnoreCase( "true" ) || value.trim().isEmpty() );
-    }
-
-    private void debug( CliRequest cliRequest )
-    {
-        logger.info( " projectbuild: " + cliRequest.getRequest().getProjectBuildingRequest().getRemoteRepositories() );
-        // only do this in focus mode:
-
-        List<ArtifactRepository> originalRepos = cliRequest.getRequest().getRemoteRepositories();
-        List<ArtifactRepository> newRepos = new ArrayList<>();
-        for ( ArtifactRepository artifactRepos : originalRepos )
-        {
-            if ( "singledeploy".equals( artifactRepos.getId() ) )
-            {
-                logger.info( "Allow repository: " + artifactRepos );
-                newRepos.add( artifactRepos );
-            }
-            else
-            {
-                logger.info( "Stripping repository: " + artifactRepos );
-            }
-        }
-        cliRequest.getRequest().setRemoteRepositories( newRepos );
     }
 
     private List<Profile> adaptProfiles( MavenExecutionRequest request, Repository focusRepo )
@@ -188,7 +166,7 @@ public class FocusConfigurationProcessor
         mirror.setMirrorOf( "*,!" + focusRepo.getId() );
         mirror.setUrl( focusRepo.getUrl() );
         logger.info( "Set mirror for " + mirror.getMirrorOf() + " to " + mirror.getUrl() + "." );
-        mirrors.add(mirror);
+        mirrors.add( mirror );
         return mirrors;
     }
 }
