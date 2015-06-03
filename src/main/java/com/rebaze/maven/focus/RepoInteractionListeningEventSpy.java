@@ -33,6 +33,7 @@ import org.eclipse.aether.resolution.ArtifactResult;
 
 import javax.inject.Inject;
 import javax.inject.Named;
+
 import java.io.*;
 import java.util.*;
 
@@ -47,13 +48,15 @@ import java.util.*;
 @Named
 public class RepoInteractionListeningEventSpy extends AbstractEventSpy
 {
+    private static final String PAYLOAD_FILENAME = "build.payload";
+
     /**
-     * When set, this plugin will upload dependencies in target/recording.txt to the repo configured here.
+     * When set, this plugin will upload dependencies in target/PAYLOAD_FILENAME to the repo configured here.
      */
     public static String PROPERTY_FOCUS_REPO = "focus.repo";
 
     /**
-     * When enabled, this spy will trace dependencies requested during builds in file target/recording.txt.
+     * When enabled, this spy will trace dependencies requested during builds in file target/PAYLOAD_FILENAME.
      *
      */
     public static String PROPERTY_ENABLED = "focus.enabled";
@@ -79,6 +82,10 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
 
     private boolean enabled = false;
 
+    private List<String> m_payloadGavs;
+
+    private boolean m_deepResolve = false;
+
     @Override public void onEvent( Object event ) throws Exception
     {
         super.onEvent( event );
@@ -95,7 +102,7 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
                     {
                         m_eventLog = new ArrayList<>();
                         m_reactorProject = exec.getProject();
-
+                        m_payloadGavs = readInputBill(getPayloadFile());
                     }
                 }
             }
@@ -129,8 +136,11 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
                     execRequest = ( MavenExecutionRequest ) event;
                     uploadRepo = execRequest.getUserProperties().getProperty( PROPERTY_FOCUS_REPO );
                     enabled = FocusConfigurationProcessor.isEnabled( execRequest.getUserProperties().getProperty( PROPERTY_ENABLED ) );
+                    if (uploadRepo != null) {
+                        logger.info("Set to deploy only!");
+                        execRequest.setRecursive(false);                        
+                    }
                 }
-
             }
             else if ( event instanceof SettingsBuildingRequest )
             {
@@ -163,12 +173,20 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
         logger.info( "Finishing focus extension.. " + enabled );
         if ( enabled && m_reactorProject != null )
         {
-            File file = writeDependencyList();
+            File payload = getPayloadFile();
+            if (uploadRepo != null && m_payloadGavs != null) {
+                // rewrite old log
+                writeDependencyList(payload, m_payloadGavs);
+            }else {
+                // write new
+                writeDependencyList( payload, synth(m_eventLog));
+            }
+            
             if ( uploadRepo != null )
             {
                 if ( m_sync )
                 {
-                    deployBill( file );
+                    deployBill( readInputBill(payload) );
                 }
                 else
                 {
@@ -180,11 +198,10 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
         super.close();
     }
 
-    private void deployBill( File input )
+    private void deployBill( List<String> sortedArtifacts )
     {
         RemoteRepository targetRepository = selectTargetRepo();
         List<RemoteRepository> allowedRepositories = calculateAllowedRepositories();
-        List<String> sortedArtifacts = readInputBill( input );
         try
         {
             List<Artifact> listOfArtifacts = parseAndResolveArtifacts( sortedArtifacts, allowedRepositories );
@@ -211,26 +228,16 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
         }
     }
 
-    private File writeDependencyList()
+    private File writeDependencyList(File f, List<String> sorted)
     {
-        File f = new File( new File( m_reactorProject.getBuild().getOutputDirectory() ).getParent(), "recording.txt" );
         if ( !f.getParentFile().exists() )
         {
             f.getParentFile().mkdirs();
         }
+        
         int finalSize = -1;
         try ( BufferedWriter writer = new BufferedWriter( new FileWriter( f, true ) ) )
         {
-            Set<String> content = new HashSet<>();
-            for ( RepositoryEvent repositoryEvent : m_eventLog )
-            {
-                if ( repositoryEvent.getArtifact() != null )
-                {
-                    content.add( repositoryEvent.getArtifact().toString() );
-                }
-            }
-            List<String> sorted = new ArrayList<>( content );
-            Collections.sort( sorted );
             finalSize = sorted.size();
             for ( String s : sorted )
             {
@@ -243,6 +250,26 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
             logger.error( "Problem writing file.", e );
         }
         logger.info( "Halo written (count=" + finalSize + "): " + f.getAbsolutePath() );
+        
+        return f;
+    }
+    
+    private List<String> synth( List<RepositoryEvent> events ) {
+        Set<String> content = new HashSet<>();
+        for ( RepositoryEvent repositoryEvent : events )
+        {
+            if ( repositoryEvent.getArtifact() != null )
+            {
+                content.add( repositoryEvent.getArtifact().toString() );
+            }
+        }
+        List<String> sorted = new ArrayList<>( content );
+        Collections.sort( sorted );
+        return sorted;
+    }
+
+    private File getPayloadFile() {
+        File f = new File( new File( m_reactorProject.getBuild().getOutputDirectory() ).getParent(), PAYLOAD_FILENAME );
         return f;
     }
 
@@ -262,24 +289,25 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
 
     private List<String> readInputBill( File input )
     {
-        Set<String> artifacts = new HashSet<>();
+        if (input == null || !input.exists()) {
+            return null;
+        }
+        List<String> sortedArtifacts = new ArrayList<>();
         try ( BufferedReader reader = new BufferedReader( new FileReader( input ) ) )
         {
             String line = null;
-            getLog().info( "Preparing deployment request.. " );
+            getLog().info( "Reading payload " + input.getAbsolutePath() );
             while ( ( line = reader.readLine() ) != null )
             {
-                artifacts.add( line );
+                sortedArtifacts.add( line );
             }
         }
         catch ( IOException e )
         {
-            getLog().error( "Cannot parse bill: " + input.getAbsolutePath(), e );
+            getLog().error( "Cannot parse payload: " + input.getAbsolutePath(), e );
             return null;
         }
-
-        List<String> sortedArtifacts = new ArrayList<>( artifacts );
-        sort( artifacts );
+        
         return sortedArtifacts;
     }
 
@@ -289,7 +317,9 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
         for ( String a : artifacts )
         {
             Artifact artifact = new DefaultArtifact( a );
-            artifactList.add( artifact );
+            if (!artifact.isSnapshot()) {
+                artifactList.add( artifact );
+            }
         }
         return resolve( artifactList, allowedRepositories );
     }
@@ -309,13 +339,15 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
     private List<Artifact> resolve( Collection<Artifact> artifacts, List<RemoteRepository> allowedRepositories ) throws ArtifactResolutionException
     {
         Collection<ArtifactRequest> artifactRequests = new ArrayList<>();
+        List<Artifact> result = new ArrayList<>( artifacts.size() );
+
         for ( Artifact a : artifacts )
         {
-
             ArtifactRequest request = new ArtifactRequest( a, allowedRepositories, null );
             artifactRequests.add( request );
+            result.add(a);
         }
-        List<Artifact> result = new ArrayList<>( artifacts.size() );
+       
         List<ArtifactResult> reply = repoSystem.resolveArtifacts( repoSession, artifactRequests );
         for ( ArtifactResult res : reply )
         {
@@ -327,6 +359,7 @@ public class RepoInteractionListeningEventSpy extends AbstractEventSpy
             {
                 getLog().warn( "Artifact " + res.getArtifact() + " is still missing." );
             }
+            
         }
         return result;
     }
