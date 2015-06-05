@@ -12,4 +12,4 @@ In effect, it will invalidate the urls to maven central and set a mirror to all 
 
 # Installation
 This extension will probably work with Maven starting version 3.2.5.
-Since this is a |Maven Core Extension], you must either install it directly into MavenHome/lib/ext or install it into [ProjectHome/.mvn/extensions.xml](http://takari.io/2015/03/19/core-extensions.html) (starting Maven 3.3.1).
+Since this is a Maven Core Extension, you must either install it directly into MavenHome/lib/ext or install it into [extensions.xml](http://takari.io/2015/03/19/core-extensions.html) (starting Maven 3.3.1).
