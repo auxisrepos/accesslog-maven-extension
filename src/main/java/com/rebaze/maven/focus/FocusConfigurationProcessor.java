@@ -38,11 +38,6 @@ public class FocusConfigurationProcessor
     implements ConfigurationProcessor
 {
     /**
-     * When enabled, settings will be heavily restricted to only point to the repository configured.
-     */
-    public static String PROPERTY_STRICT = "focus.strict";
-
-    /**
      * When set, this plugin will upload dependencies in target/PAYLOAD_FILENAME to the repo configured here.
      */
     public static String PROPERTY_FOCUS_REPO = "focus.repo";
@@ -61,10 +56,9 @@ public class FocusConfigurationProcessor
     @Override public void process( CliRequest cliRequest ) throws Exception
     {
         realProc.process( cliRequest );
-        if ( isEnabled( cliRequest.getUserProperties().getProperty( PROPERTY_STRICT ) ) )
+        if ( cliRequest.getUserProperties().getProperty( PROPERTY_FOCUS_REPO ) != null )
         {
             logger.info( "Focus mode is enabled." );
-
             Repository focusRepo = findRepository( cliRequest.getRequest(), cliRequest.getUserProperties().getProperty( PROPERTY_FOCUS_REPO ) );
             cliRequest.getRequest().setMirrors( adaptMirrors( cliRequest.getRequest(), focusRepo ) );
             cliRequest.getRequest().setProfiles( adaptProfiles( cliRequest.getRequest(), focusRepo ) );
@@ -109,11 +103,6 @@ public class FocusConfigurationProcessor
             }
         }
         throw new MavenExecutionException( "Focus repository " + repoID + " is not configured.", request.getPom() );
-    }
-
-    public static boolean isEnabled( String value )
-    {
-        return value != null && ( value.trim().equalsIgnoreCase( "true" ) || value.trim().isEmpty() );
     }
 
     private List<Profile> adaptProfiles( MavenExecutionRequest request, Repository focusRepo )
