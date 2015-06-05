@@ -38,9 +38,14 @@ public class FocusConfigurationProcessor
     implements ConfigurationProcessor
 {
     /**
-     * When enabled, settings will be heavily restricted to only point to the repository configured in {@link RepoInteractionListeningEventSpy#PROPERTY_FOCUS_REPO}
+     * When enabled, settings will be heavily restricted to only point to the repository configured.
      */
     public static String PROPERTY_STRICT = "focus.strict";
+
+    /**
+     * When set, this plugin will upload dependencies in target/PAYLOAD_FILENAME to the repo configured here.
+     */
+    public static String PROPERTY_FOCUS_REPO = "focus.repo";
 
     public static final String HINT = "focus";
     private static final String FOCUS_PROFILE_NAME = "focus";
@@ -60,7 +65,7 @@ public class FocusConfigurationProcessor
         {
             logger.info( "Focus mode is enabled." );
 
-            Repository focusRepo = findRepository( cliRequest.getRequest(), cliRequest.getUserProperties().getProperty( RepoInteractionListeningEventSpy.PROPERTY_FOCUS_REPO ) );
+            Repository focusRepo = findRepository( cliRequest.getRequest(), cliRequest.getUserProperties().getProperty( PROPERTY_FOCUS_REPO ) );
             cliRequest.getRequest().setMirrors( adaptMirrors( cliRequest.getRequest(), focusRepo ) );
             cliRequest.getRequest().setProfiles( adaptProfiles( cliRequest.getRequest(), focusRepo ) );
 
